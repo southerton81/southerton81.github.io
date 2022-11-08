@@ -1,1 +1,458 @@
-const beeAnim=[new Image,new Image,new Image];beeAnim[0].src="./assets/bee1.png",beeAnim[1].src="./assets/bee2.png",beeAnim[2].src="./assets/bee3.png";let terrainPixelSize=70,startTimestamp=0;var ctx=canvas.getContext("2d");let maxCovered=0,clamp=function(t,e,i){return Math.round(Math.max(e,Math.min(t,i)))},pollenPool=Pool({create:Sprite}),seedPool=Pool({create:Sprite}),quadtree=Quadtree(),bee=Sprite({x:canvas.width/2,y:canvas.height/2-120,width:34,height:28,dx:3,dy:0,timestamp:0,frame:0,maxFrame:2,update:function(t){bee.advance(t),(this.x<0||this.x+this.width>this.context.canvas.width)&&(this.dx=-this.dx,this.ddx=0),(this.y<0||this.y+this.height>this.context.canvas.height)&&(this.dy=-this.dy,this.ddy=0),Date.now()-this.timestamp>50&&(this.frame++,this.frame>this.maxFrame&&(this.frame=0),this.timestamp=Date.now())},render:function(){this.context.save();let t=this.x;this.dx<0&&(this.context.scale(-1,1),this.flipped=!0,t=-t-this.width),this.context.drawImage(beeAnim[this.frame],t,this.y,this.width,this.height),this.context.restore()}}),terrain=Sprite({x:0,y:0,width:canvasWidth,height:canvasHeight,grassGrowTimestamp:Date.now(),sandGrowTimestamp:Date.now(),terrainColor:null,flowers:[],maxAge:10,init:function(){this.grassGrowTimestamp=Date.now(),this.sandGrowTimestamp=Date.now(),this.terrainColor=initTerrain(canvasWidth/terrainPixelSize,canvasHeight/terrainPixelSize),this.flowers=initFlowers(canvasWidth,canvasHeight,5),this.flowers.forEach(t=>{this.modTerrain(t[0],t[1],1)})},renderFlowers:function(t){t.forEach(t=>{let e=t[2],i=t[3],a=t[4],r=t[5],n=t[6],o=t[7],s=t[8][0],l=t[8][1],h=t[8][2],d=t[10],c=e<5?2:4,x=6,m=10;e>this.maxAge&&(e=this.maxAge-(e-this.maxAge));let f=a/(this.maxAge-3);a=Math.min(a,e*f);let g=[t[0]-i,t[1]-a];if(this.context.fillStyle=s,this.context.fillRect(g[0],g[1],i,a),o.forEach(e=>{let r=e[0],n=e[1],o=e[2];if(a>r){let e=t[0]-i,a=t[1]-r,s=e,l=a;o.forEach(t=>{0==t?(s+=n,l-=1):1==t?l-=1:s+=n}),this.context.fillRect(s,l,2,2)}}),e>4){this.context.fillStyle=l;let e=g[0]-c,i=g[1]-c,a=2*c+1,r=2*c;pollenPool.get({x:e,y:i,width:a,height:r,color:d?"orange":"white",flower:t,ttl:1})}e>4&&(m/=Math.max(1,this.maxAge-e),x/=Math.max(1,this.maxAge-e),r/=Math.max(1,this.maxAge-e),n/=Math.max(1,this.maxAge-e),this.context.fillStyle=h,this.context.fillRect(g[0]-c-m,g[1]-n,m,2*n),this.context.fillRect(g[0]+c,g[1]-n,m,2*n),this.context.fillRect(g[0]-r/2,g[1]-c-x,r,x),this.context.fillRect(g[0]-r/2,g[1]+c,r,x))}),pollenPool.render(),seedPool.render()},updateTerrain:function(){let t=Date.now()-this.grassGrowTimestamp;if(t>2500&&(this.flowers.forEach(t=>{let e=clamp(Math.floor(t[0]/terrainPixelSize),0,this.terrainColor.length-1),i=clamp(Math.floor(t[1]/terrainPixelSize),0,this.terrainColor[0].length-1);if(0==this.terrainColor[e][i][1]){let t=this.terrainColor[e][i][2];this.terrainColor[e][i]=[initGrassColor(),1,t]}if(e=Math.min(Math.max(0,e+(-1+Math.round(2*Math.random()))),this.terrainColor.length-1),i=Math.min(Math.max(0,i+(-1+Math.round(2*Math.random()))),this.terrainColor[0].length-1),0==this.terrainColor[e][i][1]){let t=this.terrainColor[e][i][2];this.terrainColor[e][i]=[initGrassColor(),1,t]}}),this.grassGrowTimestamp=Date.now()),(t=Date.now()-this.sandGrowTimestamp)>2500){for(let t=0;t<this.terrainColor[0].length;t++)for(let e=0;e<this.terrainColor.length;e++){let i=this.terrainColor[e][t];if(1==i[1]&&i[2]<=0){i[0]=initSandColor(),i[1]=0;break}}this.sandGrowTimestamp=Date.now()}},modTerrain:function(t,e,i){let a=clamp(t/terrainPixelSize-2,0,this.terrainColor.length-1),r=clamp(t/terrainPixelSize+2,0,this.terrainColor.length-1),n=clamp(e/terrainPixelSize-2,0,this.terrainColor[0].length-1),o=clamp(e/terrainPixelSize+2,0,this.terrainColor[0].length-1);for(h=a;h<=r;h++)for(v=n;v<=o;v++)this.terrainColor[h][v][2]+=i},render:function(){let t=0;for(x=0;x<canvasWidth;x+=terrainPixelSize)for(y=0;y<canvasHeight;y+=terrainPixelSize){let e=this.terrainColor[x/terrainPixelSize][y/terrainPixelSize];this.context.fillStyle=e[0],this.context.fillRect(x,y,x+terrainPixelSize,y+terrainPixelSize),t+=e[1]}this.renderFlowers(this.flowers);let e=t/Math.floor(canvasWidth/terrainPixelSize*(canvasHeight/terrainPixelSize));return maxCovered<e&&(maxCovered=e),e},update:function(t){let e=this.flowers.length,i=pollenPool.getAliveObjects();for(quadtree.clear(),quadtree.add(i),quadtree.add(bee),quadtree.get(bee).some(t=>{if(bee.collidesWith(t)&&bee.lastFlower!==t.flower){if(bee.hasPollen){let e=1+Math.round(10*Math.random()),i=t.flower[4],a=t.flower[0],r=t.flower[1]-i,n=this;for(s=0;s<e;s++)seedPool.get({x:a,y:r,width:5,height:10,color:"black",ddx:(50+100*Math.random())*(Math.random()>.5?-1:1),ddy:(50+100*Math.random())*(Math.random()>.5?-1:1),launchedTs:Date.now(),maxSpanSec:1+2*Math.random(),update:function(t){this.advance(t),(Date.now()-this.launchedTs)/1e3>this.maxSpanSec&&(this.ttl=0,Math.random()>.5&&(n.flowers.push(createFlower(this.x,this.y)),n.modTerrain(this.x,this.y,1))),t>0&&(this.ddx*=1-2*t,this.ddy*=1-2*t)}})}return bee.lastFlower=t.flower,bee.hasPollen=t.flower[10],t.flower[10]=!1,!0}return!1}),pollenPool.update(t),seedPool.update(t),this.updateTerrain();e--;){let t=this.flowers[e],i=t[9],a=(Date.now()-i)/1e3;t[2]=a/agePerSec,t[2]>t[11]&&Math.random()>.95&&(this.flowers.splice(e,1),this.modTerrain(t[0],t[1],-1))}}}),statsText=null;terrain.init();let loop=GameLoop({gameStartedFlag:!1,gameOverFlag:!1,update:function(t){this.gameStartedFlag&&(terrain.update(t),bee.update(t),updateController(),checkGameOver())},render:function(){let t=terrain.render();if(bee.render(),this.gameStartedFlag)if(1==t){if(ctx.font="170px ma",ctx.fillStyle="white",ctx.textAlign="center",ctx.fillText("You have won!",canvas.width/2,canvas.height/2),ctx.font="80px ma",null===statsText){let t=(Date.now()-startTimestamp)/1e3,e=Math.floor(t/60);t=Math.floor(t%60),statsText="time: "+e+" min "+t+" s"}ctx.fillText(statsText,canvas.width/2,canvas.height/2+150),ctx.fillText("press R to restart",canvas.width/2,canvas.height/2+250),listenForRetry()}else this.gameOverFlag&&(ctx.font="170px ma",ctx.fillStyle="white",ctx.textAlign="center",ctx.fillText("Game over",canvas.width/2,canvas.height/2),ctx.font="80px ma",ctx.fillText("Best planted: "+Math.floor(100*maxCovered)+" percent",canvas.width/2,canvas.height/2+200),ctx.fillText("Press R to try again",canvas.width/2,canvas.height/2+260),listenForRetry());else ctx.font="170px ma",ctx.fillStyle="white",ctx.textAlign="center",ctx.fillText("GROW BACK",canvas.width/2,canvas.height/2-200),ctx.font="50px ma",ctx.fillText("Oil diggers turned this little planet into a desert",canvas.width/2,canvas.height/2),ctx.fillText("Collect pollen from flowers to spread the life back",canvas.width/2,canvas.height/2+50),ctx.fillText("Use arrow keys to fly",canvas.width/2,canvas.height/2+100),ctx.fillText("Press any key to start...",canvas.width/2,canvas.height/2+200),ctx.fillText("game for js13kgames by dmitriy kurovskiy",canvas.width/2,canvas.height/2+260)}});function listenForRetry(){document.onkeydown=function(t){"KeyR"==t.code&&(covered=0,statsText=null,terrain.init(),loop.gameStartedFlag=!0,loop.gameOverFlag=!1,startTimestamp=Date.now(),document.onkeydown=function(t){})}}function updateController(){Math.sqrt(bee.dx*bee.dx+bee.dy*bee.dy)>200&&(bee.dx*=.95,bee.dy*=.95),bee.ddx=0,bee.ddy=0,keyPressed("left")?bee.ddx=-200:keyPressed("right")?bee.ddx=200:keyPressed("up")?bee.ddy=-200:keyPressed("down")&&(bee.ddy=200)}function checkGameOver(){0==terrain.flowers.length&&(loop.gameOverFlag=!0)}document.onkeydown=function(t){terrain.init(),loop.gameStartedFlag=!0,startTimestamp=Date.now(),document.onkeydown=function(t){}},initKeys(),initSize(),loop.start();
+const beeAnim = [
+  new Image(),
+  new Image(),
+  new Image()
+]
+beeAnim[0].src = "./assets/bee1.png"
+beeAnim[1].src = "./assets/bee2.png"
+beeAnim[2].src = "./assets/bee3.png"
+
+let terrainPixelSize = 70
+let startTimestamp = 0
+var ctx = canvas.getContext("2d")
+let maxCovered = 0
+
+let clamp = function(number, min, max) {
+  return Math.round(Math.max(min, Math.min(number, max)));
+}
+
+let pollenPool = Pool({
+  create: Sprite
+})
+
+let seedPool = Pool({
+  create: Sprite
+})
+
+let quadtree = Quadtree()
+
+let bee = Sprite({
+  x: canvas.width / 2,
+  y: canvas.height / 2 - 120,
+  width: 34,
+  height: 28,
+  dx: 3,
+  dy: 0,
+  timestamp: 0,
+  frame: 0,
+  maxFrame: 2,
+
+  update: function (dt) {
+    bee.advance(dt)
+
+    if (this.x < 0 ||
+      this.x + this.width > this.context.canvas.width) {
+      this.dx = -this.dx
+      this.ddx = 0
+    }
+    if (this.y < 0 ||
+      this.y + this.height > this.context.canvas.height) {
+      this.dy = -this.dy
+      this.ddy = 0
+    }
+
+    let period = Date.now() - this.timestamp
+    if (period > 50) {
+      this.frame++
+      if (this.frame > this.maxFrame) this.frame = 0
+      this.timestamp = Date.now()
+    }
+  },
+
+  render: function () {
+    this.context.save()
+    let x = this.x
+    if (this.dx < 0) {
+      this.context.scale(-1, 1)
+      this.flipped = true
+      x = -x - this.width
+    }
+    this.context.drawImage(beeAnim[this.frame], x, this.y, this.width, this.height)
+    this.context.restore()
+  }
+})
+
+let terrain = Sprite({
+  x: 0,
+  y: 0,
+  width: canvasWidth,
+  height: canvasHeight, 
+  grassGrowTimestamp: Date.now(), 
+  sandGrowTimestamp: Date.now(), 
+  terrainColor: null,
+  flowers: [],
+  maxAge: 10,
+ 
+  init: function() {
+    this.grassGrowTimestamp = Date.now()
+    this.sandGrowTimestamp = Date.now()
+    this.terrainColor = initTerrain(canvasWidth / terrainPixelSize, canvasHeight / terrainPixelSize)
+    this.flowers = initFlowers(canvasWidth, canvasHeight, 5)
+    this.flowers.forEach(it => {
+      this.modTerrain(it[0], it[1], 1)
+    }) 
+  },
+
+  renderFlowers: function (flowers) { 
+    
+    flowers.forEach(f => {
+      let age = f[2]
+      let width = f[3]
+      let height = f[4] 
+      let horFlower = f[5]
+      let verFlower = f[6]
+      let leafs = f[7]
+      let stemColor = f[8][0]
+      let polColor = f[8][1]
+      let flowerColor = f[8][2]
+      let hasPollen = f[10]
+      let pollenSize = age < 5 ? 2 : 4
+      let defaultFlowerDimH = 6
+      let defaultFlowerDimV = 10
+
+      if (age > this.maxAge) {
+        age = this.maxAge - (age - this.maxAge)
+      }
+
+      let heightChangeRatio = height / (this.maxAge - 3)
+      height = Math.min(height, age * heightChangeRatio)
+      let center = [f[0] - width, f[1] - height]
+      this.context.fillStyle = stemColor
+      this.context.fillRect(center[0], center[1], width, height)
+
+
+      leafs.forEach(l => {
+        let base = l[0]
+        let side = l[1]
+        let form = l[2]
+        if (height > base) {
+          let startX = f[0] - width
+          let startY = f[1] - base
+          
+          let currX = startX 
+          let currY = startY
+
+          form.forEach(frm => {
+            if (frm == 0) {
+              currX+=side
+              currY-=1
+            } else if (frm == 1) {
+              currY-=1
+            } else {
+              currX+=side
+            }
+          })
+          this.context.fillRect(currX, currY, 2, 2)
+        }
+      })
+
+
+      if (age > 4) {
+        this.context.fillStyle = polColor
+        let pX = center[0] - pollenSize
+        let pY = center[1] - pollenSize
+        let w = pollenSize * 2 + 1
+        let h = pollenSize * 2 
+      
+        pollenPool.get({
+          x: pX,
+          y: pY,
+          width: w,
+          height: h,
+          color: hasPollen ? 'orange' : 'white',
+          flower: f,
+          ttl: 1
+        })
+      }
+
+      if (age > 4) {
+        defaultFlowerDimV = defaultFlowerDimV / Math.max(1, (this.maxAge - age))
+        defaultFlowerDimH = defaultFlowerDimH / Math.max(1, (this.maxAge - age))
+        horFlower = horFlower / Math.max(1, (this.maxAge - age))
+        verFlower = verFlower / Math.max(1, (this.maxAge - age))
+
+        this.context.fillStyle = flowerColor
+        this.context.fillRect(center[0] - pollenSize - defaultFlowerDimV, center[1] - verFlower,
+          defaultFlowerDimV, verFlower * 2)
+        this.context.fillRect(center[0] + pollenSize, center[1] - verFlower,
+          defaultFlowerDimV, verFlower * 2)
+        this.context.fillRect(center[0] - horFlower / 2, center[1] - pollenSize - defaultFlowerDimH,
+          horFlower, defaultFlowerDimH)
+        this.context.fillRect(center[0] - horFlower / 2, center[1] + pollenSize,
+          horFlower, defaultFlowerDimH)
+      }
+    })
+
+    pollenPool.render()
+    seedPool.render()
+  },
+
+  updateTerrain: function () {
+    let period = Date.now() - this.grassGrowTimestamp
+    if (period > 2500) {
+      this.flowers.forEach(f => {
+        let tx = clamp(Math.floor(f[0] / terrainPixelSize), 0, this.terrainColor.length - 1)
+        let ty = clamp(Math.floor(f[1] / terrainPixelSize), 0, this.terrainColor[0].length - 1)
+
+        if (this.terrainColor[tx][ty][1] == 0) {
+          let cnt = this.terrainColor[tx][ty][2]
+          this.terrainColor[tx][ty] = [initGrassColor(), 1, cnt]
+        }
+
+        tx = Math.min(Math.max(0, tx + (-1 + Math.round(2 * Math.random()))), this.terrainColor.length - 1)
+        ty = Math.min(Math.max(0, ty + (-1 + Math.round(2 * Math.random()))), this.terrainColor[0].length - 1)
+        if (this.terrainColor[tx][ty][1] == 0) {
+          let cnt = this.terrainColor[tx][ty][2]
+          this.terrainColor[tx][ty] = [initGrassColor(), 1, cnt]
+        }
+      })
+
+      this.grassGrowTimestamp = Date.now()
+    }
+
+    period = Date.now() - this.sandGrowTimestamp
+    if (period > 2500) {
+      for (let y = 0; y < this.terrainColor[0].length; y++) {
+        for (let x = 0; x < this.terrainColor.length; x++) {
+          let cell = this.terrainColor[x][y]
+          if (cell[1] == 1 && cell[2] <= 0) {
+            cell[0] = initSandColor()
+            cell[1] = 0
+            break
+          }   
+        }
+      }
+
+      this.sandGrowTimestamp = Date.now()
+    }
+  },
+
+  modTerrain: function (x, y, value) {
+    let fromX = clamp((x / terrainPixelSize) - 2, 0, this.terrainColor.length - 1)
+    let toX = clamp((x / terrainPixelSize) + 2, 0, this.terrainColor.length - 1)
+    let fromY = clamp((y / terrainPixelSize) - 2, 0, this.terrainColor[0].length - 1)
+    let toY = clamp((y / terrainPixelSize) + 2, 0, this.terrainColor[0].length - 1)
+
+    for (h = fromX; h <= toX; h++) {
+      for (v = fromY; v <= toY; v++) {
+        this.terrainColor[h][v][2] += value
+      }
+    }
+  },
+
+  render: function () { 
+    let grassCnt = 0
+    for (x = 0; x < canvasWidth; x += terrainPixelSize) {
+      for (y = 0; y < canvasHeight; y += terrainPixelSize) {
+        let cell = this.terrainColor[x / terrainPixelSize][y / terrainPixelSize]
+        this.context.fillStyle = cell[0]
+        this.context.fillRect(x, y, x + terrainPixelSize, y + terrainPixelSize)
+        grassCnt += cell[1] 
+      }
+    }
+
+    this.renderFlowers(this.flowers) 
+    let totalCnt = Math.floor((canvasWidth / terrainPixelSize) * (canvasHeight / terrainPixelSize))
+   
+    let covered = grassCnt / totalCnt 
+    if (maxCovered < covered)
+      maxCovered = covered   
+    return covered
+  },
+
+  update: function (dt) {
+    let len = this.flowers.length
+    let pollenSprites = pollenPool.getAliveObjects() 
+    quadtree.clear()
+    quadtree.add(pollenSprites)
+    quadtree.add(bee)
+    let candidates = quadtree.get(bee)
+
+    candidates.some(c => {
+      if (bee.collidesWith(c) && bee.lastFlower !== c.flower) {
+
+        if (bee.hasPollen) {
+
+          // Spend pollen
+          let seedCount = 1 + Math.round(Math.random() * 10) 
+          let flowerHeight = c.flower[4] 
+
+          let startX = c.flower[0]
+          let startY = c.flower[1] - flowerHeight
+
+          let terrain = this
+          for (s = 0; s < seedCount; s++) {
+            seedPool.get({ 
+              x: startX,
+              y: startY,
+              width: 5,
+              height: 10,
+              color: 'black',
+              ddx: (50 + Math.random() * 100) * (Math.random() > .5 ? -1 : 1),
+              ddy: (50 + Math.random() * 100) * (Math.random() > .5 ? -1 : 1),
+              launchedTs: Date.now(),
+              maxSpanSec: 1 + Math.random() * 2,
+              
+              update: function (dt) {
+                this.advance(dt)
+                let timespanSec = (Date.now() - this.launchedTs) / 1000
+                if (timespanSec > this.maxSpanSec) {
+                  this.ttl = 0
+
+                  if (Math.random() > .5) {
+                    terrain.flowers.push(createFlower(this.x, this.y))
+                    terrain.modTerrain(this.x, this.y, 1)
+                  }
+                }
+
+                if (dt > 0) {
+                  this.ddx *= 1 - dt * 2
+                  this.ddy *= 1 - dt * 2
+                }
+              }
+            
+            })
+          }
+        }
+
+        bee.lastFlower = c.flower
+        bee.hasPollen = c.flower[10] /*does bee have new pollen now*/
+        c.flower[10] = false /*flower doesn't have pollen now*/
+        return true;
+      }
+      return false;
+    })
+
+    pollenPool.update(dt)
+    seedPool.update(dt)
+    this.updateTerrain()
+
+    while (len--) {
+      let f = this.flowers[len]
+      let creationTimestamp = f[9]
+      let timeSpanSec = (Date.now() - creationTimestamp) / 1000
+      f[2] = timeSpanSec / agePerSec
+      if (f[2] > f[11]/*max age*/) {
+        if (Math.random() > .95) {
+          this.flowers.splice(len, 1)
+          this.modTerrain(f[0], f[1], -1)
+        }
+      }
+    }
+  }
+})
+
+
+let statsText = null
+terrain.init()
+
+let loop = GameLoop({ 
+  gameStartedFlag: false,
+  gameOverFlag: false,
+
+  update: function(dt) { 
+    if (this.gameStartedFlag) {
+      terrain.update(dt)
+      bee.update(dt)
+      updateController() 
+      checkGameOver()
+    }
+  },
+
+  render: function() { 
+    let covered = terrain.render() 
+    bee.render()
+
+    if (!this.gameStartedFlag) {
+      ctx.font = "170px ma"
+      ctx.fillStyle =  "white"
+      ctx.textAlign = "center"
+      ctx.fillText("GROW BACK", canvas.width/2, canvas.height/2 - 200)
+      ctx.font = "50px ma" 
+      ctx.fillText("Turn a desert into greenfield", canvas.width/2, canvas.height/2)
+      ctx.fillText("Collect pollen from flowers to spread the life back", canvas.width/2, canvas.height/2 + 50)
+      ctx.fillText("Use arrow keys to fly", canvas.width/2, canvas.height/2 + 100)
+      ctx.fillText("Press any key to start...", canvas.width/2, canvas.height/2 + 200)
+    } else if (covered == 1) {
+      ctx.font = "170px ma"
+      ctx.fillStyle =  "white"
+      ctx.textAlign = "center"
+      ctx.fillText("You have won!", canvas.width/2, canvas.height/2)
+      ctx.font = "80px ma"
+      if (statsText === null) {
+        let timeSec = (Date.now() - startTimestamp) / 1000
+        let timeMin = Math.floor(timeSec / 60)
+        timeSec = Math.floor(timeSec % 60)
+        statsText = "time: " + timeMin + " min " + timeSec + " s"
+      }
+      ctx.fillText(statsText, canvas.width/2, canvas.height/2 + 150)
+      ctx.fillText("press R to restart", canvas.width/2, canvas.height/2 + 250)
+      listenForRetry()
+    } else if (this.gameOverFlag) {
+      ctx.font = "170px ma"
+      ctx.fillStyle =  "white"
+      ctx.textAlign = "center"
+      ctx.fillText("Game over", canvas.width/2, canvas.height/2)
+      ctx.font = "80px ma"
+      ctx.fillText("Best planted" + Math.floor(maxCovered * 100) + " percent", canvas.width/2, canvas.height/2 + 200)
+      ctx.fillText("Press R to try again", canvas.width/2, canvas.height/2 + 260)
+      listenForRetry()
+    }
+  }
+})
+
+function listenForRetry() {
+  document.onkeydown = function(e) {
+    if (e.code == 'KeyR') {
+      covered = 0
+      maxCovered = 0
+      statsText = null
+      terrain.init()
+      loop.gameStartedFlag = true
+      loop.gameOverFlag = false
+      startTimestamp = Date.now()
+      document.onkeydown=function(e){}
+    }
+  }
+}
+
+document.onkeydown = function(e) {
+  terrain.init()
+  loop.gameStartedFlag = true
+  startTimestamp = Date.now()
+  document.onkeydown=function(e){}
+}
+
+function updateController() {
+  const magnitude = Math.sqrt(bee.dx * bee.dx + bee.dy * bee.dy);
+  if (magnitude > 200) {
+    bee.dx *= 0.95;
+    bee.dy *= 0.95;
+  }
+
+  bee.ddx = 0
+  bee.ddy = 0
+  if (keyPressed('left')) {
+    if (bee.dx > 0) bee.dx = 0 
+    bee.ddx = -200
+  } else if (keyPressed('right')) {
+    if (bee.dx < 0) bee.dx = 0 
+    bee.ddx = 200
+  } else if (keyPressed('up')) {
+    if (bee.dy > 0) bee.dy = 0 
+    bee.ddy = -200
+  } else if (keyPressed('down')) {
+    if (bee.dy < 0) bee.dy = 0 
+    bee.ddy = 200
+  }
+}
+
+function checkGameOver() {
+  if (terrain.flowers.length == 0) {
+    loop.gameOverFlag = true
+  }
+}
+
+initKeys()
+initSize()
+loop.start()
